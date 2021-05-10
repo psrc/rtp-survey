@@ -343,7 +343,7 @@ rm(age, age.names, children, children.names, county, county.names, disability, d
 
 # Transform to long form
 rtp.data <- rtp.data %>%
-    mutate(mutate(across(contains("Q"), as.character))) %>%
+    mutate(across(contains("Q"), as.character)) %>%
     pivot_longer(cols=contains("Q"), names_to="question", values_to="response") %>%
     mutate(question_number = question) %>%
     mutate(question_number = str_extract(question_number, "[Q](..)"), question_number = str_trim(question_number), question = str_replace(question, "[Q](..)", "")) %>%
