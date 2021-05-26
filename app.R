@@ -173,15 +173,15 @@ summarize.question.by.race <- function(c.data=rtp.data, q, d, n) {
     # Filter data 
     temp <- c.data %>% filter(question_number == q & response_date <= d & response > 0) %>% select(race, response) %>% mutate(mutate(across(response, as.numeric)))
     
-    # Add names and consolidate race to white & people of color
+    # Add names and consolidate race to white & bipoc
     temp <- left_join(temp, n, by=c("response"="value")) %>% 
         filter(race != "No Response") %>%
         mutate(race = case_when(
             race == "White" ~ "White",
-            race != "White" ~ "People of Color")) %>%
+            race != "White" ~ "BIPOC")) %>%
         mutate(response=1)
     
-    total.non.white <- temp %>% filter(race=="People of Color") %>% select(response) %>% pull() %>% sum()   
+    total.non.white <- temp %>% filter(race=="BIPOC") %>% select(response) %>% pull() %>% sum()   
     total.white <- temp %>% filter(race=="White") %>% select(response) %>% pull() %>% sum()   
     
     df <- temp %>% select(race, name,response) %>%
@@ -235,7 +235,7 @@ summarize.multi.question.by.race <- function(c.data=rtp.data, q, d, n) {
         mutate(mutate(across(response, as.numeric))) %>%
         mutate(race = case_when(
             race == "White" ~ "White",
-            race != "White" ~ "People of Color")) %>%
+            race != "White" ~ "BIPOC")) %>%
         mutate(count=1) %>%
         group_by(race,`sub-question`) %>%
         summarize(total_response = sum(response), total_count = sum(count)) %>%
@@ -598,7 +598,7 @@ server <- function(input, output) {
         share <- round((poc.responses/responses)*100,0)
         
         infoBox(
-            "People of Color", paste0(poc.responses, " (",share,"% of all responses)"), icon = icon("users"),
+            "BIPOC", paste0(poc.responses, " (",share,"% of all responses)"), icon = icon("users"),
             color = "yellow"
         )
     })
