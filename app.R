@@ -1,9 +1,9 @@
 library(shiny)
 library(shinydashboard)
-library(data.table)
 library(tidyverse)
 library(here)
 library(lubridate)
+library(readxl)
 
 # Packages for Chart Creation
 library(ggplot2)
@@ -13,6 +13,8 @@ library(plotly)
 # Packages for Maps
 library(sf)
 library(leaflet)
+
+source("psrc_palette.R")
 
 # Lists -------------------------------------------------------------------
 county.lookup <- c("No Response" = 0,
@@ -129,8 +131,9 @@ q12.lookup <- c( "Very poor" = 1,
 
 q12.names <- enframe(q12.lookup)
 
-psrc.colors <- list("People of Color" = "#AD5CAB",
-                    "White" = "#E3C9E3")
+low.income <- c("Under $25k","$25K to $50k")
+moderate.income <- c("$50k to $75k", "$75k to $100k")
+high.income <- c("$100k to $200k","over $200k")
 
 
 # Functions ---------------------------------------------------------------
@@ -147,6 +150,7 @@ create.bar.charts <- function (c.data) {
                        alpha = 1.0,
                        position = "dodge") +
                       coord_flip() +
+                   scale_fill_manual(values= psrc.colors) +
                    labs(x = NULL, y = NULL) +
                    theme(plot.title = element_text(size = 10, face = 'bold'),
                          axis.text.x = element_blank(),
@@ -265,8 +269,55 @@ summarize.multi.question.by.race <- function(c.data=rtp.data, q, d, n) {
     return(g)
 }
 
+summarize.multi.question.by.income <- function(c.data=rtp.data, q, d, n) {
+    
+    temp <- c.data %>% 
+        filter(question_number == q & response_date <= d & response > 0) %>% 
+        separate(question, c("question", "sub-question"), "\\?") %>%
+        select(income, `sub-question`, response) %>% 
+        mutate(mutate(across(response, as.numeric))) %>%
+        filter(income != "No Response") %>%
+        mutate(income = case_when(
+            income %in% low.income ~ "Lower Income",
+            income %in% moderate.income ~ "Middle Income",
+            income %in% high.income ~ "Upper Income")) %>%
+        mutate(count=1) %>%
+        group_by(income,`sub-question`) %>%
+        summarize(total_response = sum(response), total_count = sum(count)) %>%
+        mutate(average = total_response / total_count)
+    
+    g <-  ggplotly(ggplot(data = temp,
+                          aes(x = `sub-question`, 
+                              y = average, 
+                              fill = race,
+                              text = paste0(prettyNum(round(average, 2), big.mark = ",")))) +
+                       geom_col(
+                           color = "black",
+                           alpha = 1.0,
+                           position=position_dodge(0.5)) +
+                       scale_x_discrete(labels = function(x) str_wrap(x, width = 48)) +
+                       coord_flip() +
+                       ylim(0,5) +
+                       labs(x = NULL, y = NULL) +
+                       scale_fill_manual(values= psrc.colors) +
+                       theme(plot.title = element_text(size = 10, face = 'bold'),
+                             axis.line = element_blank(),
+                             panel.background = element_blank(),
+                             panel.grid.major.y = element_line(colour="#BBBDC0",size = 0.25),
+                             panel.grid.minor.y = element_line(colour="#BBBDC0",size = 0.25),
+                             panel.grid.major.x = element_blank(),
+                             panel.grid.minor.x = element_blank(),
+                             legend.position = "bottom",
+                             legend.title = element_blank()),
+                   tooltip = c("text")) %>% layout(legend = list(orientation = "h", xanchor = "center", x = 0.5, y = -0.25))
+    
+    return(g)
+}
+
+
 # Process and Clean Survey Data -------------------------------------------
-rtp.data <- data.table::fread(here('data', 'RTPsurvey.csv')) %>% as_tibble()
+
+rtp.data <- read_excel(here('data', '1. PSRC Future of Transportation Survey .xlsx'), sheet="codified")
 
 # Details for each respondent
 county <- rtp.data %>% select(`Response ID`,county=contains("Q18")) 
@@ -330,6 +381,7 @@ rtp.data <- left_join(rtp.data,language,by=c("Response ID"))
 
 # Remove personal information and extra columns
 rtp.data <- rtp.data %>%
+    select(-c(2:39)) %>%
     select(!(cols=contains("Q18"))) %>% select(!(cols=contains("Q19"))) %>% select(!(cols=contains("Q20"))) %>%
     select(!(cols=contains("Q21"))) %>% select(!(cols=contains("Q22"))) %>% select(!(cols=contains("Q23"))) %>%
     select(!(cols=contains("Q24"))) %>% select(!(cols=contains("Q25"))) %>% select(!(cols=contains("Q26"))) %>%  
@@ -358,22 +410,37 @@ total.responses <- rtp.data %>% filter(question_number == "Q1") %>% select(respo
 
 # Tables filtered to Response Type ----------------------------------------
 county <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, county) %>% mutate(response = 1) %>% rename(name=county)
+county$name <- factor(county$name, levels=c("No Response","Other","Snohomish County","Pierce County","Kitsap County","King County"))
+
 race <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, race) %>% mutate(response = 1) %>% rename(name=race)
+race$name <- factor(race$name, levels=c("No Response","White","Other","Two or more races",
+                                        "Native Hawaiian or Pacific Islander","Middle Eastern or North African","Hispanic or Latinx",
+                                        "Asian or Asian American","American Indian or Alaska Native","Black or African American"))
+
 income <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, income) %>% mutate(response = 1) %>% rename(name=income)
+income$name <- factor(income$name, levels=c("No Response","over $200k","$100k to $200k","$75k to $100k","$50k to $75k","$25K to $50k","Under $25k"))
+
 size <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, hhsize) %>% mutate(response = 1) %>% rename(name=hhsize)
+size$name <- factor(size$name, levels=c("No Response","6 or more","5 people","4 people","3 people","2 people","1 person"))
+
 disabled <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, disability) %>% mutate(response = 1) %>% rename(name=disability)
 children <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, children) %>% mutate(response = 1) %>% rename(name=children)
 
 question_choices <- c("Q1")
 
+rtp.logo <- here('data',"Regional Transportation Plan Logo_3.jpg")
+psrc.logo <- here('data',"psrc-logo.png")
+
 
 # User Interface for Dashboard --------------------------------------------
-ui <- dashboardPage(skin = "purple", title = "RTP Survey",
-    dashboardHeader(title = "2022-2050 RTP Survey",
-                    titleWidth = '20%'),
+ui <- dashboardPage(skin = "black", title = "PSRC RTP Online Survey",
+    dashboardHeader(title = imageOutput("psrc_logo")),
     
     dashboardSidebar(
         sidebarMenu(
+            br(),
+            imageOutput("rtp_logo", height="100px"),
+            br(),
             menuItem("Overview", tabName = "dashboard", icon = icon("dashboard")),
             menuItem("Work Status", tabName = "survey-q1", icon = icon("th")),
             menuItem("Work from Home - Now", tabName = "survey-q3", icon = icon("th")),
@@ -407,14 +474,14 @@ ui <- dashboardPage(skin = "purple", title = "RTP Survey",
                     ),
 
                     fluidRow(
-                        column(width = 6, h2("Survey Response by County")),
-                        column(width = 6, h2("Survey Response by Race/Ethnicity"))),
+                        column(width = 6, h2("Response by County")),
+                        column(width = 6, h2("Response by Race/Ethnicity"))),
                     fluidRow(
                         column(width = 6, plotlyOutput("countychart")),
                         column(width = 6, plotlyOutput("racechart"))),
                     fluidRow(
-                        column(width = 6, h2("Survey Response by Income")),
-                        column(width = 6, h2("Survey Response by Household Size"))),
+                        column(width = 6, h2("Response by Income")),
+                        column(width = 6, h2("Response by Household Size"))),
                     fluidRow(
                         column(width = 6, plotlyOutput("incomechart")),
                         column(width = 6, plotlyOutput("sizechart"))),
@@ -474,6 +541,14 @@ ui <- dashboardPage(skin = "purple", title = "RTP Survey",
 
 server <- function(input, output) {
     
+    output$rtp_logo <- renderImage({
+        return(list(src = rtp.logo, contentType = "image/jpg",alt = "Alignment", width = "95%", style = "padding-left: 10px"))
+    }, deleteFile = FALSE)
+    
+    output$psrc_logo <- renderImage({
+        return(list(src = psrc.logo, contentType = "image/png",alt = "Alignment", width = "75%"))
+    }, deleteFile = FALSE)
+    
     output$question <- renderText({
         paste0(rtp.data %>% filter(question_number == input$QuestionNumber) %>% select(question) %>% pull() %>% unique())
     })
@@ -497,7 +572,7 @@ server <- function(input, output) {
     output$dateBox <- renderInfoBox({
         
         infoBox(
-            "Selected Date", paste0(input$surveydates), icon = icon("calendar-alt"),
+            "Selected Date", paste0(months(input$surveydates), " ", day(input$surveydates), ", ", year(input$surveydates)), icon = icon("calendar-alt"),
             color = "blue"
         )
     })
