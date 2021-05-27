@@ -250,7 +250,7 @@ summarize.multi.question.by.race <- function(c.data=rtp.data, q, d, n) {
                            color = "black",
                            alpha = 1.0,
                            position=position_dodge(0.5)) +
-                       scale_x_discrete(labels = function(x) str_wrap(x, width = 48)) +
+                       scale_x_discrete(labels = function(x) str_wrap(x, width = 36)) +
                        coord_flip() +
                        ylim(0,5) +
                        labs(x = NULL, y = NULL) +
@@ -443,10 +443,8 @@ ui <- dashboardPage(skin = "black", title = "PSRC RTP Online Survey",
             br(),
             menuItem("Overview", tabName = "dashboard", icon = icon("dashboard")),
             menuItem("Work Status", tabName = "survey-q1", icon = icon("th")),
-            menuItem("Work from Home - Now", tabName = "survey-q3", icon = icon("th")),
-            menuItem("Work from Home - Later", tabName = "survey-q4", icon = icon("th")),
-            menuItem("Infrastructure near Home", tabName = "survey-q13", icon = icon("th")),
-            menuItem("Infrastructure near Work", tabName = "survey-q12", icon = icon("th")),
+            menuItem("Work from Home", tabName = "wfh", icon = icon("th")),
+            menuItem("Infrastructure", tabName = "infrastructure", icon = icon("th")),
             sliderInput("surveydates",
                         "Dates:",
                         min = as.Date(first.date,"%Y-%m-%d"),
@@ -498,35 +496,24 @@ ui <- dashboardPage(skin = "black", title = "PSRC RTP Online Survey",
                     
             ),
             
-            # Infrastructure Near Home tab content
-            tabItem(tabName = "survey-q13",
-                    fluidRow(h3(textOutput("q13text"))),
-                    fluidRow(
-                        column(width=10, plotlyOutput("q13chart", width = "100%", height = "300%")))
+            # Infrastructure
+            tabItem(tabName = "infrastructure",
+                    fluidRow(h4(textOutput("infrastructuretext"))),
+                    box(title = "Near Home", solidHeader = TRUE, status = "primary",
+                        column(width = 12, plotlyOutput("q13chart"))),
+                    box(title = "Near Work", solidHeader = TRUE, status = "success",
+                        column(width = 12, plotlyOutput("q12chart")))
                     
             ),
             
-            # Infrastructure Near Work tab content
-            tabItem(tabName = "survey-q12",
-                    fluidRow(h3(textOutput("q12text"))),
-                    fluidRow(
-                        column(width=10, plotlyOutput("q12chart", width = "100%", height = "300%")))
-                    
-            ),
-            
-            # Work from Home Now tab content
-            tabItem(tabName = "survey-q3",
-                    fluidRow(h3(textOutput("q3text"))),
-                    fluidRow(
-                        column(width=10, plotlyOutput("q3chart", width = "100%", height = "300%")))
-                    
-            ),
-            
-            # Work from Home Future tab content
-            tabItem(tabName = "survey-q4",
-                    fluidRow(h3(textOutput("q4text"))),
-                    fluidRow(
-                        column(width=10, plotlyOutput("q4chart", width = "100%", height = "300%")))
+
+            # Work from Home tab content
+            tabItem(tabName = "wfh",
+                    fluidRow(h4(textOutput("wfhtext"))),
+                    box(title = "Now", solidHeader = TRUE, status = "primary",
+                        column(width = 12, plotlyOutput("q3chart"))),
+                    box(title = "After COVID-19", solidHeader = TRUE, status = "success",
+                        column(width = 12, plotlyOutput("q4chart")))
                     
             )
             
@@ -553,22 +540,16 @@ server <- function(input, output) {
         paste0(rtp.data %>% filter(question_number == input$QuestionNumber) %>% select(question) %>% pull() %>% unique())
     })
     
-    output$q3text <- renderText({
-        paste0(rtp.data %>% filter(question_number == "Q3") %>% select(question) %>% pull() %>% unique())
+    output$wfhtext <- renderText({
+        paste0(rtp.data %>% filter(question_number == "Q3") %>% select(question) %>% mutate(question = gsub(" now", "", question)) %>% pull() %>% unique())
     })
     
-    output$q4text <- renderText({
-        paste0(rtp.data %>% filter(question_number == "Q4") %>% select(question) %>% pull() %>% unique())
+    
+    output$infrastructuretext <- renderText({
+        paste0(rtp.data %>% filter(question_number == "Q13") %>% separate(question, c("question", "sub-question"), "\\?") %>% select(question) %>% mutate(question = gsub(" in the area where you live", ":", question)) %>% pull() %>% unique())
     })
     
-    output$q13text <- renderText({
-        paste0(rtp.data %>% filter(question_number == "Q13") %>% separate(question, c("question", "sub-question"), "\\?") %>% select(question) %>% pull() %>% unique())
-    })
-    
-    output$q12text <- renderText({
-        paste0(rtp.data %>% filter(question_number == "Q12") %>% separate(question, c("question", "sub-question"), "\\?") %>% select(question) %>% pull() %>% unique())
-    })
-    
+
     output$dateBox <- renderInfoBox({
         
         infoBox(
