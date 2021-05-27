@@ -102,15 +102,16 @@ language.lookup <- c("English" = 0,
 
 language.names <- enframe(language.lookup)
 
-q1.lookup <- c( "Working from home (employed full or part-time, self-employed)  " = 1,
-                "Working outside the home (employed full or part-time, self-employed)  " = 2,
-                "Some combination of working from home or outside the home " = 3,
-                "Student (full or part-time)" = 4,
-                "Unemployed or furloughed" = 5,
+q1.lookup <- c( "Working from home" = 1,
+                "Working outside the home" = 2,
+                "Combination" = 3,
+                "Student" = 4,
+                "Unemployed" = 5,
                 "Retired" = 6,
-                "Unable to work and not looking for employment (for example, due to disability or caregiver role)" = 7,
-                "Not working for pay or not looking for employment" = 8,
-                "Other (please tell us more below)" = 9)
+                "Unable to work" = 7,
+                "Not working" = 8,
+                "Other" = 9)
+
 
 q1.names <- enframe(q1.lookup)
 
@@ -131,6 +132,24 @@ q12.lookup <- c( "Very poor" = 1,
 
 q12.names <- enframe(q12.lookup)
 
+q16.lookup <- c("Better information" =  " Better information (how to use transit, trip planning, real-time arrival information, etc.)",
+                "Easier to access" = " Easier to access (closer to my home or places I go, more parking at transit centers or park & rides, accommodations for people with disabilities, etc.)",
+                "Easier to travel with people or belongings" = " Easier to travel with people or belongings (children, bikes, groceries, etc.)",
+                "Extended service" = " Extended service (longer hours throughout the week, more weekend service, etc.)",
+                "Not planning to use" = " I do not plan to use transit after COVID-19",
+                "Improved safety features" = " Improved safety features (on board, at stops or stations, trip to/from stops/stations, etc.)",
+                "More affordable" = " More affordable",
+                "More comfortable" = " More comfortable (on board, at stops or stations, trip to/from stops/stations, etc.)",
+                "On-time" = " On-time arrivals and departures",
+                "Other" = " Other (please specify)",
+                "Shorter trip time" = " Shorter trip time (more direct service, shorter wait times, less time on board, etc.)")
+
+q16 <- "Please select the top three things that would motivate you to use public transit more often when COVID-19 is no longer a serious threat to public health."
+q16.names <- enframe(q16.lookup)
+q16.clean <- "Please select the top three \\(3 things that would motivate you to use public transit more often when COVID-19 is no longer a serious threat to public health.\\) "
+q16.order <- c("Other","Not planning to use","Easier to travel with people or belongings","Better information","More affordable",
+               "Extended service","On-time","Easier to access","More comfortable","Improved safety features","Shorter trip time")
+               
 low.income <- c("Under $25k","$25K to $50k")
 moderate.income <- c("$50k to $75k", "$75k to $100k")
 high.income <- c("$100k to $200k","over $200k")
@@ -226,6 +245,67 @@ summarize.question.by.race <- function(c.data=rtp.data, q, d, n) {
     
 }
 
+summarize.question.by.income <- function(c.data=rtp.data, q, d, n) {
+    
+    # Filter data 
+    temp <- c.data %>% filter(question_number == q & response_date <= d & response > 0) %>% select(income, response) %>% 
+        mutate(mutate(across(response, as.numeric)))
+        
+    # Add names and consolidate race to white & bipoc
+    temp <- left_join(temp, n, by=c("response"="value")) %>% 
+        filter(income != "No Response") %>%
+        mutate(income = case_when(
+            income %in% low.income ~ "Low",
+            income %in% moderate.income ~ "Moderate",
+            income %in% high.income ~ "Upper")) %>%
+        mutate(response=1)
+    
+    total.lowinc <- temp %>% filter(income=="Low") %>% select(response) %>% pull() %>% sum()   
+    total.midinc <- temp %>% filter(income=="Moderate") %>% select(response) %>% pull() %>% sum()
+    total.uppinc <- temp %>% filter(income=="Upper") %>% select(response) %>% pull() %>% sum()   
+    
+    df <- temp %>% select(income, name, response) %>%
+        group_by(income,name) %>%
+        summarize(total = sum(response)) %>%
+        rename(responses = total) %>%
+        mutate(total = case_when(
+            income == "Low" ~ total.lowinc,
+            income == "Moderate" ~ total.midinc,
+            income == "Upper" ~ total.uppinc)) %>%
+        mutate(share=responses/total) %>%
+        select(-total) %>%
+        rename(total=responses)
+    
+    g <-  ggplotly(ggplot(data = df,
+                          aes(x = name, 
+                              y = share, 
+                              fill = income,
+                              text = paste0(prettyNum(round(share*100, 0), big.mark = ","), "%"))) +
+                       geom_col(
+                           color = "black",
+                           alpha = 1.0,
+                           position = "dodge") +
+                       scale_x_discrete(labels = function(x) str_wrap(x, width = 48)) +
+                       coord_flip() +
+                       labs(x = NULL, y = NULL) +
+                       scale_fill_manual(values= psrc.colors) +
+                       theme(plot.title = element_text(size = 10, face = 'bold'),
+                             axis.text.x = element_blank(),
+                             axis.ticks.x = element_blank(),
+                             axis.line = element_blank(),
+                             panel.background = element_blank(),
+                             panel.grid.major.y = element_line(colour="#BBBDC0",size = 0.25),
+                             panel.grid.minor.y = element_line(colour="#BBBDC0",size = 0.25),
+                             panel.grid.major.x = element_blank(),
+                             panel.grid.minor.x = element_blank(),
+                             legend.position = "bottom",
+                             legend.title = element_blank()),
+                   tooltip = c("text")) %>% layout(legend = list(orientation = "h", xanchor = "center", x = 0, y = 0))
+    
+    return(g)
+    
+}
+
 summarize.multi.question.by.race <- function(c.data=rtp.data, q, d, n) {
     
     temp <- c.data %>% 
@@ -238,51 +318,6 @@ summarize.multi.question.by.race <- function(c.data=rtp.data, q, d, n) {
             race != "White" ~ "BIPOC")) %>%
         mutate(count=1) %>%
         group_by(race,`sub-question`) %>%
-        summarize(total_response = sum(response), total_count = sum(count)) %>%
-        mutate(average = total_response / total_count)
-    
-    g <-  ggplotly(ggplot(data = temp,
-                          aes(x = `sub-question`, 
-                              y = average, 
-                              fill = race,
-                              text = paste0(prettyNum(round(average, 2), big.mark = ",")))) +
-                       geom_col(
-                           color = "black",
-                           alpha = 1.0,
-                           position=position_dodge(0.5)) +
-                       scale_x_discrete(labels = function(x) str_wrap(x, width = 36)) +
-                       coord_flip() +
-                       ylim(0,5) +
-                       labs(x = NULL, y = NULL) +
-                       scale_fill_manual(values= psrc.colors) +
-                       theme(plot.title = element_text(size = 10, face = 'bold'),
-                             axis.line = element_blank(),
-                             panel.background = element_blank(),
-                             panel.grid.major.y = element_line(colour="#BBBDC0",size = 0.25),
-                             panel.grid.minor.y = element_line(colour="#BBBDC0",size = 0.25),
-                             panel.grid.major.x = element_blank(),
-                             panel.grid.minor.x = element_blank(),
-                             legend.position = "bottom",
-                             legend.title = element_blank()),
-                   tooltip = c("text")) %>% layout(legend = list(orientation = "h", xanchor = "center", x = 0.5, y = -0.25))
-    
-    return(g)
-}
-
-summarize.multi.question.by.income <- function(c.data=rtp.data, q, d, n) {
-    
-    temp <- c.data %>% 
-        filter(question_number == q & response_date <= d & response > 0) %>% 
-        separate(question, c("question", "sub-question"), "\\?") %>%
-        select(income, `sub-question`, response) %>% 
-        mutate(mutate(across(response, as.numeric))) %>%
-        filter(income != "No Response") %>%
-        mutate(income = case_when(
-            income %in% low.income ~ "Lower Income",
-            income %in% moderate.income ~ "Middle Income",
-            income %in% high.income ~ "Upper Income")) %>%
-        mutate(count=1) %>%
-        group_by(income,`sub-question`) %>%
         summarize(total_response = sum(response), total_count = sum(count)) %>%
         mutate(average = total_response / total_count)
     
@@ -314,6 +349,131 @@ summarize.multi.question.by.income <- function(c.data=rtp.data, q, d, n) {
     return(g)
 }
 
+summarize.preference.question.by.race <- function(c.data=rtp.data, q, d, t, n, o) {
+
+    temp <- c.data %>% 
+        filter(question_number == q) %>% 
+        mutate(question = gsub(t, "", question)) %>%
+        filter(response == 1) %>%
+        filter(race != "No Response") %>%
+        mutate(race = case_when(
+            race == "White" ~ "White",
+            race != "White" ~ "BIPOC")) %>%
+        mutate(response=1) %>%
+        select(race, question, response)
+
+    temp <- left_join(temp, n, by=c("question"="value"))
+
+    total.non.white <- temp %>% filter(race=="BIPOC") %>% select(response) %>% pull() %>% sum()   
+    total.white <- temp %>% filter(race=="White") %>% select(response) %>% pull() %>% sum()   
+
+    df <- temp %>% select(race, name, response) %>%
+        group_by(race, name) %>%
+        summarize(total = sum(response)) %>%
+        rename(responses = total) %>%
+        mutate(total = total.white) %>%
+        mutate(total = case_when(
+            race == "White" ~ total.white,
+            race != "White" ~ total.non.white)) %>%
+        mutate(share=responses/total) %>%
+        select(-total) %>%
+        rename(total=responses)
+    
+    df$name <- factor(df$name, levels=o)
+
+    g <-  ggplotly(ggplot(data = df,
+                      aes(x = name, 
+                          y = share, 
+                          fill = race,
+                          text = paste0(prettyNum(round(share*100, 0), big.mark = ","), "%"))) +
+                   geom_col(
+                       color = "black",
+                       alpha = 1.0,
+                       position = "dodge") +
+                   scale_x_discrete(labels = function(x) str_wrap(x, width = 48)) +
+                   coord_flip() +
+                   labs(x = NULL, y = NULL) +
+                   scale_fill_manual(values= psrc.colors) +
+                   theme(plot.title = element_text(size = 10, face = 'bold'),
+                         axis.text.x = element_blank(),
+                         axis.ticks.x = element_blank(),
+                         axis.line = element_blank(),
+                         panel.background = element_blank(),
+                         panel.grid.major.y = element_line(colour="#BBBDC0",size = 0.25),
+                         panel.grid.minor.y = element_line(colour="#BBBDC0",size = 0.25),
+                         panel.grid.major.x = element_blank(),
+                         panel.grid.minor.x = element_blank(),
+                         legend.position = "bottom",
+                         legend.title = element_blank()),
+               tooltip = c("text")) %>% layout(legend = list(orientation = "h", xanchor = "center", x = 0, y = 0))
+
+    return(g)
+    
+}
+
+summarize.preference.question.by.income <- function(c.data=rtp.data, q, d, t, n, o) {
+    
+    temp <- c.data %>% 
+        filter(question_number == q) %>% 
+        mutate(question = gsub(t, "", question)) %>%
+        filter(response == 1) %>%
+        filter(income != "No Response") %>%
+        mutate(income = case_when(
+            income %in% low.income ~ "Low",
+            income %in% moderate.income ~ "Moderate",
+            income %in% high.income ~ "Upper")) %>%
+        mutate(response=1) %>%
+        select(income, question, response)
+    
+    temp <- left_join(temp, n, by=c("question"="value"))
+    
+    total.lowinc <- temp %>% filter(income=="Low") %>% select(response) %>% pull() %>% sum()   
+    total.midinc <- temp %>% filter(income=="Moderate") %>% select(response) %>% pull() %>% sum()
+    total.uppinc <- temp %>% filter(income=="Upper") %>% select(response) %>% pull() %>% sum()   
+
+    df <- temp %>% select(income, name, response) %>%
+        group_by(income,name) %>%
+        summarize(total = sum(response)) %>%
+        rename(responses = total) %>%
+        mutate(total = case_when(
+            income == "Low" ~ total.lowinc,
+            income == "Moderate" ~ total.midinc,
+            income == "Upper" ~ total.uppinc)) %>%
+        mutate(share=responses/total) %>%
+        select(-total) %>%
+        rename(total=responses)
+    
+    df$name <- factor(df$name, levels=o)
+    
+    g <-  ggplotly(ggplot(data = df,
+                          aes(x = name, 
+                              y = share, 
+                              fill = income,
+                              text = paste0(prettyNum(round(share*100, 0), big.mark = ","), "%"))) +
+                       geom_col(
+                           color = "black",
+                           alpha = 1.0,
+                           position = "dodge") +
+                       scale_x_discrete(labels = function(x) str_wrap(x, width = 48)) +
+                       coord_flip() +
+                       labs(x = NULL, y = NULL) +
+                       scale_fill_manual(values= psrc.colors) +
+                       theme(plot.title = element_text(size = 10, face = 'bold'),
+                             axis.text.x = element_blank(),
+                             axis.ticks.x = element_blank(),
+                             axis.line = element_blank(),
+                             panel.background = element_blank(),
+                             panel.grid.major.y = element_line(colour="#BBBDC0",size = 0.25),
+                             panel.grid.minor.y = element_line(colour="#BBBDC0",size = 0.25),
+                             panel.grid.major.x = element_blank(),
+                             panel.grid.minor.x = element_blank(),
+                             legend.position = "bottom",
+                             legend.title = element_blank()),
+                   tooltip = c("text")) %>% layout(legend = list(orientation = "h", xanchor = "center", x = 0, y = 0))
+    
+    return(g)
+    
+}
 
 # Process and Clean Survey Data -------------------------------------------
 
@@ -431,7 +591,6 @@ question_choices <- c("Q1")
 rtp.logo <- here('data',"Regional Transportation Plan Logo_3.jpg")
 psrc.logo <- here('data',"psrc-logo.png")
 
-
 # User Interface for Dashboard --------------------------------------------
 ui <- dashboardPage(skin = "black", title = "PSRC RTP Online Survey",
     dashboardHeader(title = imageOutput("psrc_logo")),
@@ -442,9 +601,10 @@ ui <- dashboardPage(skin = "black", title = "PSRC RTP Online Survey",
             imageOutput("rtp_logo", height="100px"),
             br(),
             menuItem("Overview", tabName = "dashboard", icon = icon("dashboard")),
-            menuItem("Work Status", tabName = "survey-q1", icon = icon("th")),
-            menuItem("Work from Home", tabName = "wfh", icon = icon("th")),
-            menuItem("Infrastructure", tabName = "infrastructure", icon = icon("th")),
+            menuItem("Work Status", tabName = "survey-q1", icon = icon("briefcase")),
+            menuItem("Work from Home", tabName = "wfh", icon = icon("house-user")),
+            menuItem("Infrastructure", tabName = "infrastructure", icon = icon("road")),
+            menuItem("Transit Preference", tabName = "transit-preference", icon = icon("bus")),
             sliderInput("surveydates",
                         "Dates:",
                         min = as.Date(first.date,"%Y-%m-%d"),
@@ -487,33 +647,35 @@ ui <- dashboardPage(skin = "black", title = "PSRC RTP Online Survey",
             
             # Second tab content
             tabItem(tabName = "survey-q1",
-                    fluidRow(
-                        column(width = 3, selectInput("QuestionNumber","Select the Survey Question:",question_choices)),
-                        column(width = 9, "")),
-                    fluidRow(h2(textOutput("question"))),
-                    fluidRow(
-                        column(width=10, plotlyOutput("questionchart")))
+                    fluidRow(h4(textOutput("workstatustext"))),
+                    fluidRow(box(title = "By Race / Ethnicity", solidHeader = TRUE, status = "primary", plotlyOutput("q1racechart"), width = 6),
+                             box(title = "By Income", solidHeader = TRUE, status = "success", plotlyOutput("q1incomechart"), width = 6))
+                    
+            ),
+            
+            # Transit Preference
+            tabItem(tabName = "transit-preference",
+                    fluidRow(h4(textOutput("transitpreftext"))),
+                    fluidRow(box(title = "By Race / Ethnicity", solidHeader = TRUE, status = "primary", plotlyOutput("q16racechart"), width = 6),
+                             box(title = "By Income", solidHeader = TRUE, status = "success", plotlyOutput("q16incomechart"), width = 6))
                     
             ),
             
             # Infrastructure
             tabItem(tabName = "infrastructure",
                     fluidRow(h4(textOutput("infrastructuretext"))),
-                    box(title = "Near Home", solidHeader = TRUE, status = "primary",
-                        column(width = 12, plotlyOutput("q13chart"))),
-                    box(title = "Near Work", solidHeader = TRUE, status = "success",
-                        column(width = 12, plotlyOutput("q12chart")))
-                    
+                    fluidRow(box(title = "Near Home", solidHeader = TRUE, status = "primary", plotlyOutput("q13chart"), width = 12)),
+                    fluidRow(box(title = "Near Work", solidHeader = TRUE, status = "success", plotlyOutput("q12chart"), width = 12))
             ),
             
 
             # Work from Home tab content
             tabItem(tabName = "wfh",
                     fluidRow(h4(textOutput("wfhtext"))),
-                    box(title = "Now", solidHeader = TRUE, status = "primary",
-                        column(width = 12, plotlyOutput("q3chart"))),
-                    box(title = "After COVID-19", solidHeader = TRUE, status = "success",
-                        column(width = 12, plotlyOutput("q4chart")))
+                    fluidRow(box(title = "Now by Race/Ethnicity", solidHeader = TRUE, status = "primary", plotlyOutput("wfhnowracechart"), width = 6),
+                             box(title = "After COVID-19 by Race/Ethnicity", solidHeader = TRUE, status = "success", plotlyOutput("wfhaftracechart"), width = 6)),
+                    fluidRow(box(title = "Now by Income", solidHeader = TRUE, status = "primary", plotlyOutput("wfhnowincomechart"), width = 6),
+                             box(title = "After COVID-19 by Income", solidHeader = TRUE, status = "success", plotlyOutput("wfhaftincomechart"), width = 6))
                     
             )
             
@@ -536,8 +698,8 @@ server <- function(input, output) {
         return(list(src = psrc.logo, contentType = "image/png",alt = "Alignment", width = "75%"))
     }, deleteFile = FALSE)
     
-    output$question <- renderText({
-        paste0(rtp.data %>% filter(question_number == input$QuestionNumber) %>% select(question) %>% pull() %>% unique())
+    output$workstatustext <- renderText({
+        paste0(rtp.data %>% filter(question_number == "Q1") %>% select(question) %>% pull() %>% unique())
     })
     
     output$wfhtext <- renderText({
@@ -549,6 +711,9 @@ server <- function(input, output) {
         paste0(rtp.data %>% filter(question_number == "Q13") %>% separate(question, c("question", "sub-question"), "\\?") %>% select(question) %>% mutate(question = gsub(" in the area where you live", ":", question)) %>% pull() %>% unique())
     })
     
+    output$transitpreftext <- renderText({
+        paste0(q16)
+    })
 
     output$dateBox <- renderInfoBox({
         
@@ -673,12 +838,21 @@ server <- function(input, output) {
     output$incomechart <- renderPlotly({create.bar.charts(incomeslider())})
     output$sizechart <- renderPlotly({create.bar.charts(sizeslider())})
     
-    output$questionchart <- renderPlotly({summarize.question.by.race(rtp.data, q=input$QuestionNumber, d=input$surveydates, n=q1.names)})
-    output$q3chart <- renderPlotly({summarize.question.by.race(q="Q3", d=input$surveydates, n=q3.names)})
-    output$q4chart <- renderPlotly({summarize.question.by.race(q="Q4", d=input$surveydates, n=q3.names)})
+    output$q1racechart <- renderPlotly({summarize.question.by.race(rtp.data, q="Q1", d=input$surveydates, n=q1.names)})
+    output$q1incomechart <- renderPlotly({summarize.question.by.income(rtp.data, q="Q1", d=input$surveydates, n=q1.names)})
+    
+    output$wfhnowracechart <- renderPlotly({summarize.question.by.race(q="Q3", d=input$surveydates, n=q3.names)})
+    output$wfhnowincomechart <- renderPlotly({summarize.question.by.income(q="Q3", d=input$surveydates, n=q3.names)})
+    
+    output$wfhaftracechart <- renderPlotly({summarize.question.by.race(q="Q4", d=input$surveydates, n=q3.names)})
+    output$wfhaftincomechart <- renderPlotly({summarize.question.by.income(q="Q4", d=input$surveydates, n=q3.names)})
+    
     output$q12chart <- renderPlotly({summarize.multi.question.by.race(q="Q12", d=input$surveydates, n=q12.names)})
     output$q13chart <- renderPlotly({summarize.multi.question.by.race(q="Q13", d=input$surveydates, n=q12.names)})
-   
+    
+    output$q16racechart <- renderPlotly({summarize.preference.question.by.race(q="Q16", d=input$surveydates, n=q16.names, t=q16.clean, o=q16.order)})
+    output$q16incomechart <- renderPlotly({summarize.preference.question.by.income(q="Q16", d=input$surveydates, n=q16.names, t=q16.clean, o=q16.order)})
+    
 }
 
 shinyApp(ui, server)

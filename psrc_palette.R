@@ -33,6 +33,10 @@ psrc.colors <- c(
   "6 or more" = "#BFE9E7",
   
   "BIPOC" = "#AD5CAB",
-  "White" = "#E3C9E3"
+  "White" = "#E3C9E3",
+  
+  "Low" = "#8CC63E",
+  "Moderate" = "#F05A28",
+  "Upper" = "#76787A"
 
 )
