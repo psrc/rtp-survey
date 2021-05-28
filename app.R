@@ -149,7 +149,23 @@ q16.names <- enframe(q16.lookup)
 q16.clean <- "Please select the top three \\(3 things that would motivate you to use public transit more often when COVID-19 is no longer a serious threat to public health.\\) "
 q16.order <- c("Other","Not planning to use","Easier to travel with people or belongings","Better information","More affordable",
                "Extended service","On-time","Easier to access","More comfortable","Improved safety features","Shorter trip time")
-               
+
+q36 <- "In addition to difficulties from COVID-19, do you or does anyone in your household experience any of the following challenges to using specialized transportation services?"
+q36.lookup <- c("Lack of information" =  "Lack of information about available services",
+                "Language Barrier" = "Lack of spoken and/or written language assistance",
+                "Span of Service" = "Lack of services at times when they are needed",
+                "Cost" = "High cost of services",
+                "Travel Time" = "Longer travel times compared to other transportation options (driving in a personal vehicle, transit, etc.)",
+                "Wait Times" = "Long wait times when transferring between services",
+                "Difficult to Transfer" = "Difficulty transferring between services due to eligibility requirements",
+                "Difficult getting to things" = "Difficulty getting to medical appointments, pharmacies, and grocery stores",
+                "No Challenges" = "No challenges to using specialized transportation services",
+                "Other" = "Other (please specify)")
+
+q36.names <- enframe(q36.lookup)
+q36.clean <- " In addition to difficulties from COVID-19, do you or does anyone in your household experience any of the following challenges to using specialized transportation services \\(check all that may apply\\?\\) "
+q36.order <- c("Other","No Challenges","Difficult getting to things","Difficult to Transfer","Wait Times",
+               "Travel Time","Cost","Span of Service","Language Barrier","Lack of information")
 low.income <- c("Under $25k","$25K to $50k")
 moderate.income <- c("$50k to $75k", "$75k to $100k")
 high.income <- c("$100k to $200k","over $200k")
@@ -352,7 +368,7 @@ summarize.multi.question.by.race <- function(c.data=rtp.data, q, d, n) {
 summarize.preference.question.by.race <- function(c.data=rtp.data, q, d, t, n, o) {
 
     temp <- c.data %>% 
-        filter(question_number == q) %>% 
+        filter(question_number == q & response_date <= d) %>% 
         mutate(question = gsub(t, "", question)) %>%
         filter(response == 1) %>%
         filter(race != "No Response") %>%
@@ -414,7 +430,7 @@ summarize.preference.question.by.race <- function(c.data=rtp.data, q, d, t, n, o
 summarize.preference.question.by.income <- function(c.data=rtp.data, q, d, t, n, o) {
     
     temp <- c.data %>% 
-        filter(question_number == q) %>% 
+        filter(question_number == q & response_date <= d) %>% 
         mutate(question = gsub(t, "", question)) %>%
         filter(response == 1) %>%
         filter(income != "No Response") %>%
@@ -586,8 +602,6 @@ size$name <- factor(size$name, levels=c("No Response","6 or more","5 people","4 
 disabled <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, disability) %>% mutate(response = 1) %>% rename(name=disability)
 children <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, children) %>% mutate(response = 1) %>% rename(name=children)
 
-question_choices <- c("Q1")
-
 rtp.logo <- here('data',"Regional Transportation Plan Logo_3.jpg")
 psrc.logo <- here('data',"psrc-logo.png")
 
@@ -605,6 +619,7 @@ ui <- dashboardPage(skin = "black", title = "PSRC RTP Online Survey",
             menuItem("Work from Home", tabName = "wfh", icon = icon("house-user")),
             menuItem("Infrastructure", tabName = "infrastructure", icon = icon("road")),
             menuItem("Transit Preference", tabName = "transit-preference", icon = icon("bus")),
+            menuItem("Specialized Transportation", tabName = "special-needs", icon = icon("blind")),
             sliderInput("surveydates",
                         "Dates:",
                         min = as.Date(first.date,"%Y-%m-%d"),
@@ -661,6 +676,14 @@ ui <- dashboardPage(skin = "black", title = "PSRC RTP Online Survey",
                     
             ),
             
+            # Special Needs
+            tabItem(tabName = "special-needs",
+                    fluidRow(h4(textOutput("specneedspreftext"))),
+                    fluidRow(box(title = "By Race / Ethnicity", solidHeader = TRUE, status = "primary", plotlyOutput("q36racechart"), width = 6),
+                             box(title = "By Income", solidHeader = TRUE, status = "success", plotlyOutput("q36incomechart"), width = 6))
+                    
+            ),
+            
             # Infrastructure
             tabItem(tabName = "infrastructure",
                     fluidRow(h4(textOutput("infrastructuretext"))),
@@ -713,6 +736,10 @@ server <- function(input, output) {
     
     output$transitpreftext <- renderText({
         paste0(q16)
+    })
+    
+    output$specneedspreftext <- renderText({
+        paste0(q36)
     })
 
     output$dateBox <- renderInfoBox({
@@ -852,6 +879,9 @@ server <- function(input, output) {
     
     output$q16racechart <- renderPlotly({summarize.preference.question.by.race(q="Q16", d=input$surveydates, n=q16.names, t=q16.clean, o=q16.order)})
     output$q16incomechart <- renderPlotly({summarize.preference.question.by.income(q="Q16", d=input$surveydates, n=q16.names, t=q16.clean, o=q16.order)})
+ 
+    output$q36racechart <- renderPlotly({summarize.preference.question.by.race(q="Q36", d=input$surveydates, n=q36.names, t=q36.clean, o=q36.order)})
+    output$q36incomechart <- renderPlotly({summarize.preference.question.by.income(q="Q36", d=input$surveydates, n=q36.names, t=q36.clean, o=q36.order)})
     
 }
 
