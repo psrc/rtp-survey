@@ -150,6 +150,23 @@ q16.clean <- "Please select the top three \\(3 things that would motivate you to
 q16.order <- c("Other","Not planning to use","Easier to travel with people or belongings","Better information","More affordable",
                "Extended service","On-time","Easier to access","More comfortable","Improved safety features","Shorter trip time")
 
+q17.lookup <- c("Reliable neighborhood transit" =  " Reliable, well-connected transit service for local neighborhoods",
+                "Complete Bike/Ped facilities" = " Complete network for bicyclists and pedestrians",
+                "Reliable roads" = " Reliable, well-maintained roads and highways",
+                "High speed rail" = " High speed rail connecting to places in and outside the region",
+                "More Fast Ferries" = " More direct and faster ferry options",
+                "Fast/secure deliveries" = " Deliveries are fast and secure",
+                "Expanded air travel" = " Expanded air travel connecting to places in and outside the region",
+                "Expanded transit to major destinations" = " Expanded, faster transit service between major destinations across the region",
+                "Other" = " Other (please specify)",
+                "Widespread charging stations" = " Widespread electric vehicle charging stations")
+
+q17 <- "When you think about a complete and reliable transportation system in the future, what are your priorities?"
+q17.names <- enframe(q17.lookup)
+q17.clean <- "The central Puget Sound region continues to grow and create more demands on the transportation system. When you think about a complete and reliable transportation system in the future, what are your priorities\\? Please select your top three \\(3 priorities.\\) "
+q17.order <- c("Other","Fast/secure deliveries", "Expanded air travel", "Widespread charging stations", "Reliable roads", "Complete Bike/Ped facilities",
+               "More Fast Ferries", "High speed rail", "Expanded transit to major destinations", "Reliable neighborhood transit")
+
 q36 <- "In addition to difficulties from COVID-19, do you or does anyone in your household experience any of the following challenges to using specialized transportation services?"
 q36.lookup <- c("Lack of information" =  "Lack of information about available services",
                 "Language Barrier" = "Lack of spoken and/or written language assistance",
@@ -619,6 +636,7 @@ ui <- dashboardPage(skin = "black", title = "PSRC RTP Online Survey",
             menuItem("Work from Home", tabName = "wfh", icon = icon("house-user")),
             menuItem("Infrastructure", tabName = "infrastructure", icon = icon("road")),
             menuItem("Transit Preference", tabName = "transit-preference", icon = icon("bus")),
+            menuItem("Transportation Priority", tabName = "transportationpriority", icon = icon("train")),
             menuItem("Specialized Transportation", tabName = "special-needs", icon = icon("blind")),
             sliderInput("surveydates",
                         "Dates:",
@@ -691,7 +709,13 @@ ui <- dashboardPage(skin = "black", title = "PSRC RTP Online Survey",
                     fluidRow(box(title = "Near Work", solidHeader = TRUE, status = "success", plotlyOutput("q12chart"), width = 12))
             ),
             
-
+            # Future Transporation Priority
+            tabItem(tabName = "transportationpriority",
+                    fluidRow(h4(textOutput("transprioritytext"))),
+                    fluidRow(box(title = "By Race / Ethnicity", solidHeader = TRUE, status = "primary", plotlyOutput("q17racechart"), width = 6)),
+                    fluidRow(box(title = "By Income", solidHeader = TRUE, status = "success", plotlyOutput("q17incomechart"), width = 6))
+            ),
+            
             # Work from Home tab content
             tabItem(tabName = "wfh",
                     fluidRow(h4(textOutput("wfhtext"))),
@@ -729,7 +753,6 @@ server <- function(input, output) {
         paste0(rtp.data %>% filter(question_number == "Q3") %>% select(question) %>% mutate(question = gsub(" now", "", question)) %>% pull() %>% unique())
     })
     
-    
     output$infrastructuretext <- renderText({
         paste0(rtp.data %>% filter(question_number == "Q13") %>% separate(question, c("question", "sub-question"), "\\?") %>% select(question) %>% mutate(question = gsub(" in the area where you live", ":", question)) %>% pull() %>% unique())
     })
@@ -740,6 +763,10 @@ server <- function(input, output) {
     
     output$specneedspreftext <- renderText({
         paste0(q36)
+    })
+    
+    output$transprioritytext <- renderText({
+        paste0(q17)
     })
 
     output$dateBox <- renderInfoBox({
@@ -879,7 +906,10 @@ server <- function(input, output) {
     
     output$q16racechart <- renderPlotly({summarize.preference.question.by.race(q="Q16", d=input$surveydates, n=q16.names, t=q16.clean, o=q16.order)})
     output$q16incomechart <- renderPlotly({summarize.preference.question.by.income(q="Q16", d=input$surveydates, n=q16.names, t=q16.clean, o=q16.order)})
- 
+
+    output$q17racechart <- renderPlotly({summarize.preference.question.by.race(q="Q17", d=input$surveydates, n=q17.names, t=q17.clean, o=q17.order)})
+    output$q17incomechart <- renderPlotly({summarize.preference.question.by.income(q="Q17", d=input$surveydates, n=q17.names, t=q17.clean, o=q17.order)})
+    
     output$q36racechart <- renderPlotly({summarize.preference.question.by.race(q="Q36", d=input$surveydates, n=q36.names, t=q36.clean, o=q36.order)})
     output$q36incomechart <- renderPlotly({summarize.preference.question.by.income(q="Q36", d=input$surveydates, n=q36.names, t=q36.clean, o=q36.order)})
     
