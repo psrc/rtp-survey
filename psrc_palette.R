@@ -35,9 +35,9 @@ psrc.colors <- c(
   "BIPOC" = "#AD5CAB",
   "White" = "#E3C9E3",
   
-  "Low" = "#8CC63E",
-  "Moderate" = "#F05A28",
-  "Upper" = "#76787A",
+  "Low (under $50k)" = "#8CC63E",
+  "Moderate ($50k to $100k)" = "#F05A28",
+  "Upper (over $100k)" = "#76787A",
   
   "under 18" = "#F05A28",
   "18 to 64" = "#F4835E",

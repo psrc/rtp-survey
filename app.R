@@ -195,6 +195,7 @@ q36.names <- enframe(q36.lookup)
 q36.clean <- " In addition to difficulties from COVID-19, do you or does anyone in your household experience any of the following challenges to using specialized transportation services \\(check all that may apply\\?\\) "
 q36.order <- c("Other","No Challenges","Difficult getting to things","Difficult to Transfer","Wait Times",
                "Travel Time","Cost","Span of Service","Language Barrier","Lack of information")
+
 low.income <- c("Under $25k","$25K to $50k")
 moderate.income <- c("$50k to $75k", "$75k to $100k")
 high.income <- c("$100k to $200k","over $200k")
@@ -300,23 +301,23 @@ summarize.question.by.income <- function(c.data=rtp.data, q, d, n) {
     temp <- left_join(temp, n, by=c("response"="value")) %>% 
         filter(income != "No Response") %>%
         mutate(income = case_when(
-            income %in% low.income ~ "Low",
-            income %in% moderate.income ~ "Moderate",
-            income %in% high.income ~ "Upper")) %>%
+            income %in% low.income ~ "Low (under $50k)",
+            income %in% moderate.income ~ "Moderate ($50k to $100k)",
+            income %in% high.income ~ "Upper (over $100k)")) %>%
         mutate(response=1)
     
-    total.lowinc <- temp %>% filter(income=="Low") %>% select(response) %>% pull() %>% sum()   
-    total.midinc <- temp %>% filter(income=="Moderate") %>% select(response) %>% pull() %>% sum()
-    total.uppinc <- temp %>% filter(income=="Upper") %>% select(response) %>% pull() %>% sum()   
+    total.lowinc <- temp %>% filter(income=="Low (under $50k)") %>% select(response) %>% pull() %>% sum()   
+    total.midinc <- temp %>% filter(income=="Moderate ($50k to $100k)") %>% select(response) %>% pull() %>% sum()
+    total.uppinc <- temp %>% filter(income=="Upper (over $100k)") %>% select(response) %>% pull() %>% sum()   
     
     df <- temp %>% select(income, name, response) %>%
         group_by(income,name) %>%
         summarize(total = sum(response)) %>%
         rename(responses = total) %>%
         mutate(total = case_when(
-            income == "Low" ~ total.lowinc,
-            income == "Moderate" ~ total.midinc,
-            income == "Upper" ~ total.uppinc)) %>%
+            income == "Low (under $50k)" ~ total.lowinc,
+            income == "Moderate ($50k to $100k)" ~ total.midinc,
+            income == "Upper (over $100k)" ~ total.uppinc)) %>%
         mutate(share=responses/total) %>%
         select(-total) %>%
         rename(total=responses)
@@ -464,26 +465,26 @@ summarize.preference.question.by.income <- function(c.data=rtp.data, q, d, t, n,
         filter(response == 1) %>%
         filter(income != "No Response") %>%
         mutate(income = case_when(
-            income %in% low.income ~ "Low",
-            income %in% moderate.income ~ "Moderate",
-            income %in% high.income ~ "Upper")) %>%
+            income %in% low.income ~ "Low (under $50k)",
+            income %in% moderate.income ~ "Moderate ($50k to $100k)",
+            income %in% high.income ~ "Upper (over $100k)")) %>%
         mutate(response=1) %>%
         select(income, question, response)
     
     temp <- left_join(temp, n, by=c("question"="value"))
     
-    total.lowinc <- temp %>% filter(income=="Low") %>% select(response) %>% pull() %>% sum()   
-    total.midinc <- temp %>% filter(income=="Moderate") %>% select(response) %>% pull() %>% sum()
-    total.uppinc <- temp %>% filter(income=="Upper") %>% select(response) %>% pull() %>% sum()   
+    total.lowinc <- temp %>% filter(income=="Low (under $50k)") %>% select(response) %>% pull() %>% sum()   
+    total.midinc <- temp %>% filter(income=="Moderate ($50k to $100k)") %>% select(response) %>% pull() %>% sum()
+    total.uppinc <- temp %>% filter(income=="Upper (over $100k)") %>% select(response) %>% pull() %>% sum()   
 
     df <- temp %>% select(income, name, response) %>%
         group_by(income,name) %>%
         summarize(total = sum(response)) %>%
         rename(responses = total) %>%
         mutate(total = case_when(
-            income == "Low" ~ total.lowinc,
-            income == "Moderate" ~ total.midinc,
-            income == "Upper" ~ total.uppinc)) %>%
+            income == "Low (under $50k)" ~ total.lowinc,
+            income == "Moderate ($50k to $100k)" ~ total.midinc,
+            income == "Upper (over $100k)" ~ total.uppinc)) %>%
         mutate(share=responses/total) %>%
         select(-total) %>%
         rename(total=responses)
@@ -532,7 +533,7 @@ create.zipcode.map <- function(c.data, d) {
     zipcode.point.response <- left_join(psrc.zipcodes.centroids, response.by.zip, by=c("zipcode")) %>%
         mutate(response = replace_na(response, 0))
     
-    icons <- awesomeIcons(
+    i <- awesomeIcons(
         icon = 'user',
         iconColor = 'black',
         library = 'fa'
@@ -558,7 +559,7 @@ create.zipcode.map <- function(c.data, d) {
                     group = "Zipcode") %>%
         
         addAwesomeMarkers(data=zipcode.point.response, 
-                          icon = icons, 
+                          icon = i, 
                           clusterOptions = markerClusterOptions(),
                           group="Responses")
     
