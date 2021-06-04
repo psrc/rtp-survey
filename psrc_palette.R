@@ -37,6 +37,11 @@ psrc.colors <- c(
   
   "Low" = "#8CC63E",
   "Moderate" = "#F05A28",
-  "Upper" = "#76787A"
+  "Upper" = "#76787A",
+  
+  "under 18" = "#F05A28",
+  "18 to 64" = "#F4835E",
+  "65 to 84" = "#F7A489",
+  "over 85" = "#FBD6C9"
 
 )

@@ -43,3 +43,11 @@ vignettes/*.pdf
 *.png
 *.jpg
 *.xls
+*.cpg
+*.dbf
+*.prj
+*.sbn
+*.sbx
+*.shp
+*.shx
+*shp.xml

@@ -16,6 +16,18 @@ library(leaflet)
 
 source("psrc_palette.R")
 
+wgs84 <- 4326
+spn <- 2285 
+
+psrc.zipcodes <- st_read(here('data','shapefiles', 'psrc_zipcodes.shp')) %>%
+    st_transform(wgs84) %>%
+    select(zipcode)
+
+psrc.zipcodes.centroids <- psrc.zipcodes %>%
+    st_transform(spn) %>%
+    st_centroid() %>%
+    st_transform(wgs84)
+
 # Lists -------------------------------------------------------------------
 county.lookup <- c("No Response" = 0,
                    "King County" = 1,
@@ -28,13 +40,13 @@ county.names <- enframe(county.lookup)
 
 age.lookup <- c("No Response" = 0,
                 "Under 18" = 1,
-                "18 to 24" = 2,
-                "25 to 34" = 3,
-                "35 to 44" = 4,
-                "45 to 54" = 5,
-                "55 to 64" = 6,
-                "65 to 74" = 7,
-                "75 to 84" = 8,
+                "18 to 64" = 2,
+                "18 to 64" = 3,
+                "18 to 64" = 4,
+                "18 to 64" = 5,
+                "18 to 64" = 6,
+                "65 to 84" = 7,
+                "65 to 84" = 8,
                 "over 85" = 9)
 
 age.names <- enframe(age.lookup)
@@ -508,6 +520,52 @@ summarize.preference.question.by.income <- function(c.data=rtp.data, q, d, t, n,
     
 }
 
+create.zipcode.map <- function(c.data, d) {
+    
+    # Get response by zipcode
+    response.by.zip <- c.data %>% 
+        filter(question_number == "Q1" & response_date <= d) %>% 
+        select(zipcode) %>% 
+        drop_na(zipcode) %>%
+        mutate(response=1)
+    
+    zipcode.point.response <- left_join(psrc.zipcodes.centroids, response.by.zip, by=c("zipcode")) %>%
+        mutate(response = replace_na(response, 0))
+    
+    icons <- awesomeIcons(
+        icon = 'user',
+        iconColor = 'black',
+        library = 'fa'
+    )
+    
+    m <- leaflet() %>% 
+        addProviderTiles(providers$CartoDB.Positron) %>%
+        
+        addLayersControl(baseGroups = c("Base Map"),
+                         overlayGroups = c("Zipcode","Responses"),
+                         options = layersControlOptions(collapsed = TRUE)) %>%
+        
+        addEasyButton(easyButton(
+            icon="fa-globe", title="Region",
+            onClick=JS("function(btn, map){map.setView([47.615,-122.257],8.5); }"))) %>%
+        
+        addPolygons(data=psrc.zipcodes,
+                    fillOpacity = 0.0,
+                    opacity = 1.0,
+                    weight = 1,
+                    color = "#91268F",
+                    dashArray = "1",
+                    group = "Zipcode") %>%
+        
+        addAwesomeMarkers(data=zipcode.point.response, 
+                          icon = icons, 
+                          clusterOptions = markerClusterOptions(),
+                          group="Responses")
+    
+    return(m)
+    
+}
+
 # Process and Clean Survey Data -------------------------------------------
 
 rtp.data <- read_excel(here('data', '1. PSRC Future of Transportation Survey .xlsx'), sheet="codified")
@@ -613,6 +671,9 @@ race$name <- factor(race$name, levels=c("No Response","White","Other","Two or mo
 income <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, income) %>% mutate(response = 1) %>% rename(name=income)
 income$name <- factor(income$name, levels=c("No Response","over $200k","$100k to $200k","$75k to $100k","$50k to $75k","$25K to $50k","Under $25k"))
 
+age <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, age) %>% mutate(response = 1) %>% rename(name=age)
+age$name <- factor(age$name, levels=c("No Response","over 85","65 to 84","18 to 64","Under 18"))
+
 size <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, hhsize) %>% mutate(response = 1) %>% rename(name=hhsize)
 size$name <- factor(size$name, levels=c("No Response","6 or more","5 people","4 people","3 people","2 people","1 person"))
 
@@ -676,6 +737,12 @@ ui <- dashboardPage(skin = "black", title = "PSRC RTP Online Survey",
                     fluidRow(
                         column(width = 6, plotlyOutput("incomechart")),
                         column(width = 6, plotlyOutput("sizechart"))),
+                    fluidRow(
+                        column(width = 6, h2("Response by Age")),
+                        column(width = 6, h2("Response by Zipcode"))),
+                    fluidRow(
+                        column(width = 6, plotlyOutput("agechart")),
+                        column(width = 6, leafletOutput("zipcodemap")))
             ),
             
             # Second tab content
@@ -709,11 +776,11 @@ ui <- dashboardPage(skin = "black", title = "PSRC RTP Online Survey",
                     fluidRow(box(title = "Near Work", solidHeader = TRUE, status = "success", plotlyOutput("q12chart"), width = 12))
             ),
             
-            # Future Transporation Priority
+            # Future Transportation Priority
             tabItem(tabName = "transportationpriority",
                     fluidRow(h4(textOutput("transprioritytext"))),
-                    fluidRow(box(title = "By Race / Ethnicity", solidHeader = TRUE, status = "primary", plotlyOutput("q17racechart"), width = 6)),
-                    fluidRow(box(title = "By Income", solidHeader = TRUE, status = "success", plotlyOutput("q17incomechart"), width = 6))
+                    fluidRow(box(title = "By Race / Ethnicity", solidHeader = TRUE, status = "primary", plotlyOutput("q17racechart"), width = 6),
+                             box(title = "By Income", solidHeader = TRUE, status = "success", plotlyOutput("q17incomechart"), width = 6))
             ),
             
             # Work from Home tab content
@@ -887,10 +954,20 @@ server <- function(input, output) {
             summarize(total = sum(response))
     }) 
     
+    ageslider <- reactive({
+        
+        df <- age %>% 
+            filter(response_date <= input$surveydates) %>% 
+            select(name,response) %>%
+            group_by(name) %>%
+            summarize(total = sum(response))
+    })
+    
     output$countychart <- renderPlotly({create.bar.charts(countyslider())})
     output$racechart <- renderPlotly({create.bar.charts(raceslider())})
     output$incomechart <- renderPlotly({create.bar.charts(incomeslider())})
     output$sizechart <- renderPlotly({create.bar.charts(sizeslider())})
+    output$agechart <- renderPlotly({create.bar.charts(ageslider())})
     
     output$q1racechart <- renderPlotly({summarize.question.by.race(rtp.data, q="Q1", d=input$surveydates, n=q1.names)})
     output$q1incomechart <- renderPlotly({summarize.question.by.income(rtp.data, q="Q1", d=input$surveydates, n=q1.names)})
@@ -912,6 +989,8 @@ server <- function(input, output) {
     
     output$q36racechart <- renderPlotly({summarize.preference.question.by.race(q="Q36", d=input$surveydates, n=q36.names, t=q36.clean, o=q36.order)})
     output$q36incomechart <- renderPlotly({summarize.preference.question.by.income(q="Q36", d=input$surveydates, n=q36.names, t=q36.clean, o=q36.order)})
+    
+    output$zipcodemap <- renderLeaflet({create.zipcode.map(c.data=rtp.data, d=input$surveydates)})
     
 }
 
