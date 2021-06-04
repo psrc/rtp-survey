@@ -19,7 +19,7 @@ source("psrc_palette.R")
 wgs84 <- 4326
 spn <- 2285 
 
-psrc.zipcodes <- st_read(here('data','shapefiles', 'psrc_zipcodes.shp')) %>%
+psrc.zipcodes <- st_read(here('data', 'psrc_zipcodes.shp')) %>%
     st_transform(wgs84) %>%
     select(zipcode)
 
