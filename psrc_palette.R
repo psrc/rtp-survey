@@ -30,7 +30,7 @@ psrc.colors <- c(
   "3 people" = "#00A7A0",
   "4 people" = "#40BDB8",
   "5 people" = "#73CFCB",
-  "6 or more" = "#BFE9E7",
+  "4 or more" = "#BFE9E7",
   
   "BIPOC" = "#AD5CAB",
   "White" = "#E3C9E3",

@@ -73,9 +73,9 @@ hhsize.lookup <- c("No Response" = 0,
                    "1 person" = 1,
                    "2 people" = 2,
                    "3 people" = 3,
-                   "4 people" = 4,
-                   "5 people" = 5,
-                   "6 or more" = 6)
+                   "4 or more" = 4,
+                   "4 or more" = 5,
+                   "4 or more" = 6)
 
 hhsize.names <- enframe(hhsize.lookup)
 
@@ -521,6 +521,130 @@ summarize.preference.question.by.income <- function(c.data=rtp.data, q, d, t, n,
     
 }
 
+summarize.preference.question.by.age <- function(c.data=rtp.data, q, d, t, n, o) {
+    
+    temp <- c.data %>% 
+        filter(question_number == q & response_date <= d) %>% 
+        mutate(question = gsub(t, "", question)) %>%
+        filter(response == 1) %>%
+        filter(age != "No Response") %>%
+        mutate(response=1) %>%
+        select(age, question, response)
+    
+    temp <- left_join(temp, n, by=c("question"="value"))
+    
+    total.under18 <- temp %>% filter(age=="Under 18") %>% select(response) %>% pull() %>% sum()   
+    total.18to64 <- temp %>% filter(age=="18 to 64") %>% select(response) %>% pull() %>% sum()
+    total.65to84 <- temp %>% filter(age=="65 to 84") %>% select(response) %>% pull() %>% sum()
+    total.over85 <- temp %>% filter(age=="Over 85") %>% select(response) %>% pull() %>% sum()   
+    
+    df <- temp %>% select(age, name, response) %>%
+        group_by(age,name) %>%
+        summarize(total = sum(response)) %>%
+        rename(responses = total) %>%
+        mutate(total = case_when(
+            age == "Under 18" ~ total.under18,
+            age == "18 to 64" ~ total.18to64,
+            age == "65 to 84" ~ total.65to84,
+            age == "Over 85" ~ total.over85)) %>%
+        mutate(share=responses/total) %>%
+        select(-total) %>%
+        rename(total=responses)
+    
+    df$name <- factor(df$name, levels=o)
+    
+    g <-  ggplotly(ggplot(data = df,
+                          aes(x = name, 
+                              y = share, 
+                              fill = age,
+                              text = paste0(prettyNum(round(share*100, 0), big.mark = ","), "%"))) +
+                       geom_col(
+                           color = "black",
+                           alpha = 1.0,
+                           position = "dodge") +
+                       scale_x_discrete(labels = function(x) str_wrap(x, width = 48)) +
+                       coord_flip() +
+                       labs(x = NULL, y = NULL) +
+                       scale_fill_manual(values= psrc.colors) +
+                       theme(plot.title = element_text(size = 10, face = 'bold'),
+                             axis.text.x = element_blank(),
+                             axis.ticks.x = element_blank(),
+                             axis.line = element_blank(),
+                             panel.background = element_blank(),
+                             panel.grid.major.y = element_line(colour="#BBBDC0",size = 0.25),
+                             panel.grid.minor.y = element_line(colour="#BBBDC0",size = 0.25),
+                             panel.grid.major.x = element_blank(),
+                             panel.grid.minor.x = element_blank(),
+                             legend.position = "bottom",
+                             legend.title = element_blank()),
+                   tooltip = c("text")) %>% layout(legend = list(orientation = "h", xanchor = "center", x = 0, y = 0))
+    
+    return(g)
+    
+}
+
+summarize.preference.question.by.size <- function(c.data=rtp.data, q, d, t, n, o) {
+    
+    temp <- c.data %>% 
+        filter(question_number == q & response_date <= d) %>% 
+        mutate(question = gsub(t, "", question)) %>%
+        filter(response == 1) %>%
+        filter(hhsize != "No Response") %>%
+        mutate(response=1) %>%
+        select(hhsize, question, response)
+    
+    temp <- left_join(temp, n, by=c("question"="value"))
+    
+    total.1 <- temp %>% filter(hhsize=="1 person") %>% select(response) %>% pull() %>% sum()   
+    total.2 <- temp %>% filter(hhsize=="2 people") %>% select(response) %>% pull() %>% sum()
+    total.3 <- temp %>% filter(hhsize=="3 people") %>% select(response) %>% pull() %>% sum()
+    total.4 <- temp %>% filter(hhsize=="4 or more") %>% select(response) %>% pull() %>% sum()   
+    
+    df <- temp %>% select(hhsize, name, response) %>%
+        group_by(hhsize,name) %>%
+        summarize(total = sum(response)) %>%
+        rename(responses = total) %>%
+        mutate(total = case_when(
+            hhsize == "1 person" ~ total.1,
+            hhsize == "2 people" ~ total.2,
+            hhsize == "3 people" ~ total.3,
+            hhsize == "4 or more" ~ total.4)) %>%
+        mutate(share=responses/total) %>%
+        select(-total) %>%
+        rename(total=responses)
+    
+    df$name <- factor(df$name, levels=o)
+    
+    g <-  ggplotly(ggplot(data = df,
+                          aes(x = name, 
+                              y = share, 
+                              fill = hhsize,
+                              text = paste0(prettyNum(round(share*100, 0), big.mark = ","), "%"))) +
+                       geom_col(
+                           color = "black",
+                           alpha = 1.0,
+                           position = "dodge") +
+                       scale_x_discrete(labels = function(x) str_wrap(x, width = 48)) +
+                       coord_flip() +
+                       labs(x = NULL, y = NULL) +
+                       scale_fill_manual(values= psrc.colors) +
+                       theme(plot.title = element_text(size = 10, face = 'bold'),
+                             axis.text.x = element_blank(),
+                             axis.ticks.x = element_blank(),
+                             axis.line = element_blank(),
+                             panel.background = element_blank(),
+                             panel.grid.major.y = element_line(colour="#BBBDC0",size = 0.25),
+                             panel.grid.minor.y = element_line(colour="#BBBDC0",size = 0.25),
+                             panel.grid.major.x = element_blank(),
+                             panel.grid.minor.x = element_blank(),
+                             legend.position = "bottom",
+                             legend.title = element_blank()),
+                   tooltip = c("text")) %>% layout(legend = list(orientation = "h", xanchor = "center", x = 0, y = 0))
+    
+    return(g)
+    
+}
+
 create.zipcode.map <- function(c.data, d) {
     
     # Get response by zipcode
@@ -676,7 +800,7 @@ age <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, ag
 age$name <- factor(age$name, levels=c("No Response","over 85","65 to 84","18 to 64","Under 18"))
 
 size <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, hhsize) %>% mutate(response = 1) %>% rename(name=hhsize)
-size$name <- factor(size$name, levels=c("No Response","6 or more","5 people","4 people","3 people","2 people","1 person"))
+size$name <- factor(size$name, levels=c("No Response","4 or more","3 people","2 people","1 person"))
 
 disabled <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, disability) %>% mutate(response = 1) %>% rename(name=disability)
 children <- rtp.data %>% filter(question_number == "Q1") %>% select(response_date, children) %>% mutate(response = 1) %>% rename(name=children)
@@ -758,7 +882,9 @@ ui <- dashboardPage(skin = "black", title = "PSRC RTP Online Survey",
             tabItem(tabName = "transit-preference",
                     fluidRow(h4(textOutput("transitpreftext"))),
                     fluidRow(box(title = "By Race / Ethnicity", solidHeader = TRUE, status = "primary", plotlyOutput("q16racechart"), width = 6),
-                             box(title = "By Income", solidHeader = TRUE, status = "success", plotlyOutput("q16incomechart"), width = 6))
+                             box(title = "By Income", solidHeader = TRUE, status = "success", plotlyOutput("q16incomechart"), width = 6)),
+                    fluidRow(box(title = "By Age", solidHeader = TRUE, status = "warning", plotlyOutput("q16agechart"), width = 6),
+                             box(title = "By Household Size", solidHeader = TRUE, status = "info", plotlyOutput("q16sizechart"), width = 6))
                     
             ),
             
@@ -781,7 +907,9 @@ ui <- dashboardPage(skin = "black", title = "PSRC RTP Online Survey",
             tabItem(tabName = "transportationpriority",
                     fluidRow(h4(textOutput("transprioritytext"))),
                     fluidRow(box(title = "By Race / Ethnicity", solidHeader = TRUE, status = "primary", plotlyOutput("q17racechart"), width = 6),
-                             box(title = "By Income", solidHeader = TRUE, status = "success", plotlyOutput("q17incomechart"), width = 6))
+                             box(title = "By Income", solidHeader = TRUE, status = "success", plotlyOutput("q17incomechart"), width = 6)),
+                    fluidRow(box(title = "By Age", solidHeader = TRUE, status = "warning", plotlyOutput("q17agechart"), width = 6),
+                             box(title = "By Household Size", solidHeader = TRUE, status = "info", plotlyOutput("q17sizechart"), width = 6))
             ),
             
             # Work from Home tab content
@@ -984,9 +1112,13 @@ server <- function(input, output) {
     
     output$q16racechart <- renderPlotly({summarize.preference.question.by.race(q="Q16", d=input$surveydates, n=q16.names, t=q16.clean, o=q16.order)})
     output$q16incomechart <- renderPlotly({summarize.preference.question.by.income(q="Q16", d=input$surveydates, n=q16.names, t=q16.clean, o=q16.order)})
+    output$q16agechart <- renderPlotly({summarize.preference.question.by.age(q="Q16", d=input$surveydates, n=q16.names, t=q16.clean, o=q16.order)})
+    output$q16sizechart <- renderPlotly({summarize.preference.question.by.size(q="Q16", d=input$surveydates, n=q16.names, t=q16.clean, o=q16.order)})
 
     output$q17racechart <- renderPlotly({summarize.preference.question.by.race(q="Q17", d=input$surveydates, n=q17.names, t=q17.clean, o=q17.order)})
     output$q17incomechart <- renderPlotly({summarize.preference.question.by.income(q="Q17", d=input$surveydates, n=q17.names, t=q17.clean, o=q17.order)})
+    output$q17agechart <- renderPlotly({summarize.preference.question.by.age(q="Q17", d=input$surveydates, n=q17.names, t=q17.clean, o=q17.order)})
+    output$q17sizechart <- renderPlotly({summarize.preference.question.by.size(q="Q17", d=input$surveydates, n=q17.names, t=q17.clean, o=q17.order)})
     
     output$q36racechart <- renderPlotly({summarize.preference.question.by.race(q="Q36", d=input$surveydates, n=q36.names, t=q36.clean, o=q36.order)})
     output$q36incomechart <- renderPlotly({summarize.preference.question.by.income(q="Q36", d=input$surveydates, n=q36.names, t=q36.clean, o=q36.order)})
